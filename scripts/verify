@@ -2,9 +2,13 @@
 set -euo pipefail
 
 if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
-  # Prevent Git's POSIX linker shim from shadowing MSVC link.exe in Windows CI.
-  PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -vi '/git/usr/bin' | paste -sd ':' -)"
-  export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe
+  # Force Rust/Cargo to use the real MSVC linker instead of Git's GNU link shim.
+  msvc_link="$(powershell -NoProfile -Command '$vs = & \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath; if (-not $vs) { exit 1 }; $tool = Get-ChildItem \"$vs\\VC\\Tools\\MSVC\" | Sort-Object Name -Descending | Select-Object -First 1; if (-not $tool) { exit 1 }; [System.IO.Path]::Combine($tool.FullName, \"bin\", \"Hostx64\", \"x64\", \"link.exe\")' 2>/dev/null || true)"
+  if [[ -n "${msvc_link}" && -f "${msvc_link}" ]]; then
+    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${msvc_link}"
+    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${msvc_link}"
+    export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${msvc_link}"
+  fi
 fi
 
 cmake --preset x64-Debug .

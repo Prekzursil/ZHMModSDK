@@ -2,12 +2,28 @@
 set -euo pipefail
 
 if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
-  # Force Rust/Cargo to use the real MSVC linker instead of Git's GNU link shim.
+  # Force Rust/Cargo to resolve link.exe to MSVC, not Git's GNU linker shim.
   msvc_link="$(powershell -NoProfile -Command '$vs = & \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath; if (-not $vs) { exit 1 }; $tool = Get-ChildItem \"$vs\\VC\\Tools\\MSVC\" | Sort-Object Name -Descending | Select-Object -First 1; if (-not $tool) { exit 1 }; [System.IO.Path]::Combine($tool.FullName, \"bin\", \"Hostx64\", \"x64\", \"link.exe\")' 2>/dev/null || true)"
-  if [[ -n "${msvc_link}" && -f "${msvc_link}" ]]; then
-    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${msvc_link}"
-    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${msvc_link}"
-    export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${msvc_link}"
+  if [[ -n "${msvc_link}" ]]; then
+    msvc_link_unix="${msvc_link}"
+    if command -v cygpath >/dev/null 2>&1; then
+      msvc_link_unix="$(cygpath -u "${msvc_link}")"
+    fi
+    if [[ -f "${msvc_link_unix}" ]]; then
+      linker_bin_dir="${PWD}/.verify-linker-bin"
+      mkdir -p "${linker_bin_dir}"
+      cp -f "${msvc_link_unix}" "${linker_bin_dir}/link.exe"
+      export PATH="${linker_bin_dir}:${PATH}"
+
+      linker_exe="${linker_bin_dir}/link.exe"
+      if command -v cygpath >/dev/null 2>&1; then
+        linker_exe="$(cygpath -w "${linker_exe}")"
+      fi
+
+      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe}"
+      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe}"
+      export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe}"
+    fi
   fi
 fi
 

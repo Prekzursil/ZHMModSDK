@@ -19,12 +19,20 @@ if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
       if command -v cygpath >/dev/null 2>&1; then
         linker_exe="$(cygpath -w "${linker_exe}")"
       fi
-
-      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe}"
-      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe}"
-      export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe}"
-
       linker_exe_toml="${linker_exe//\\//}"
+
+      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe_toml}"
+      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe_toml}"
+      export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe_toml}"
+      export RUSTC_LINKER="${linker_exe_toml}"
+
+      mkdir -p "${PWD}/ZHMModSDK/Rust/.cargo"
+      cat > "${PWD}/ZHMModSDK/Rust/.cargo/config.toml" <<EOF
+[target.x86_64-pc-windows-msvc]
+linker = "${linker_exe_toml}"
+rustflags = ["-C", "linker=${linker_exe_toml}"]
+EOF
+
       verify_cargo_home="${PWD}/.verify-cargo-home"
       mkdir -p "${verify_cargo_home}"
       cat > "${verify_cargo_home}/config.toml" <<EOF
@@ -32,6 +40,9 @@ if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
 linker = "${linker_exe_toml}"
 EOF
       export CARGO_HOME="${verify_cargo_home}"
+
+      echo "Using Rust linker override: ${linker_exe_toml}"
+      echo "Using Cargo home override: ${CARGO_HOME}"
     fi
   fi
 fi

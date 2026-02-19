@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cmake --preset x64-Debug .
+cmake --build _build/x64-Debug -j4
+cmake --install _build/x64-Debug
+cmake --preset x64-Release .
+cmake --build _build/x64-Release -j4
+cmake --install _build/x64-Release
+test -d _install/x64-Release/bin

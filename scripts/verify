@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
+  # Prevent Git's POSIX linker shim from shadowing MSVC link.exe in Windows CI.
+  PATH="$(printf '%s' "$PATH" | tr ':' '\n' | grep -vi '/git/usr/bin' | paste -sd ':' -)"
+  export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe
+fi
+
 cmake --preset x64-Debug .
 cmake --build _build/x64-Debug -j4
 cmake --install _build/x64-Debug

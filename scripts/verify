@@ -23,6 +23,15 @@ if [[ "${RUNNER_OS:-}" == "Windows" || "${OS:-}" == "Windows_NT" ]]; then
       export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe}"
       export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe}"
       export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe}"
+
+      linker_exe_toml="${linker_exe//\\//}"
+      verify_cargo_home="${PWD}/.verify-cargo-home"
+      mkdir -p "${verify_cargo_home}"
+      cat > "${verify_cargo_home}/config.toml" <<EOF
+[target.x86_64-pc-windows-msvc]
+linker = "${linker_exe_toml}"
+EOF
+      export CARGO_HOME="${verify_cargo_home}"
     fi
   fi
 fi

@@ -18,6 +18,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
       - uses: lukka/get-cmake@latest
       - uses: ilammy/msvc-dev-cmd@v1
         with:

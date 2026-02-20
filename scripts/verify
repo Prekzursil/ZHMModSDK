@@ -49,15 +49,12 @@ if [[ -n "${msvc_link}" ]]; then
     linker_exe_toml="${linker_exe//\\//}"
 
     export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe_toml}"
-    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe_toml}"
-    export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe_toml}"
     export RUSTC_LINKER="${linker_exe_toml}"
 
     mkdir -p "${PWD}/ZHMModSDK/Rust/.cargo"
     cat > "${PWD}/ZHMModSDK/Rust/.cargo/config.toml" <<EOF
 [target.x86_64-pc-windows-msvc]
 linker = "${linker_exe_toml}"
-rustflags = ["-C", "linker=${linker_exe_toml}"]
 EOF
 
     verify_cargo_home="${PWD}/.verify-cargo-home"

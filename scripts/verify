@@ -51,14 +51,12 @@ if [[ -n "${msvc_link}" ]]; then
     export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe_toml}"
     export RUSTC_LINKER="${linker_exe_toml}"
 
-    mkdir -p "${PWD}/ZHMModSDK/Rust/.cargo"
-    cat > "${PWD}/ZHMModSDK/Rust/.cargo/config.toml" <<EOF
-[target.x86_64-pc-windows-msvc]
-linker = "${linker_exe_toml}"
-EOF
-
-    verify_cargo_home="${PWD}/.verify-cargo-home"
-    mkdir -p "${verify_cargo_home}"
+    verify_temp_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+    if command -v cygpath >/dev/null 2>&1; then
+      verify_temp_root="$(cygpath -u "${verify_temp_root}" 2>/dev/null || printf '%s' "${verify_temp_root}")"
+    fi
+    mkdir -p "${verify_temp_root}"
+    verify_cargo_home="$(mktemp -d "${verify_temp_root}/zhm-verify-cargo-home-XXXXXX")"
     cat > "${verify_cargo_home}/config.toml" <<EOF
 [target.x86_64-pc-windows-msvc]
 linker = "${linker_exe_toml}"
@@ -74,10 +72,10 @@ else
   echo "WARNING: Could not resolve MSVC link.exe; continuing without override."
 fi
 
-cmake --preset x64-Debug .
+cmake --preset x64-Debug
 cmake --build _build/x64-Debug -j4
 cmake --install _build/x64-Debug
-cmake --preset x64-Release .
+cmake --preset x64-Release
 cmake --build _build/x64-Release -j4
 cmake --install _build/x64-Release
 test -d _install/x64-Release/bin

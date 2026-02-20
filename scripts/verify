@@ -1,57 +1,82 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-pwsh_cmd=""
-if command -v powershell >/dev/null 2>&1; then
-  pwsh_cmd="$(command -v powershell)"
-elif command -v powershell.exe >/dev/null 2>&1; then
-  pwsh_cmd="$(command -v powershell.exe)"
+msvc_link=""
+
+# Prefer the linker path exported by msvc-dev-cmd in CI.
+if [[ -n "${VCToolsInstallDir:-}" ]]; then
+  msvc_link="${VCToolsInstallDir%\\}\\bin\\Hostx64\\x64\\link.exe"
 fi
 
-if [[ -n "${pwsh_cmd}" ]]; then
-  # Force Rust/Cargo to resolve link.exe to MSVC, not Git's GNU linker shim.
-  msvc_link="$("${pwsh_cmd}" -NoProfile -Command '$vs = & \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath; if (-not $vs) { exit 1 }; $tool = Get-ChildItem \"$vs\\VC\\Tools\\MSVC\" | Sort-Object Name -Descending | Select-Object -First 1; if (-not $tool) { exit 1 }; [System.IO.Path]::Combine($tool.FullName, \"bin\", \"Hostx64\", \"x64\", \"link.exe\")' 2>/dev/null || true)"
-  if [[ -n "${msvc_link}" ]]; then
-    msvc_link_unix="${msvc_link}"
-    if command -v cygpath >/dev/null 2>&1; then
-      msvc_link_unix="$(cygpath -u "${msvc_link}")"
-    fi
-    if [[ -f "${msvc_link_unix}" ]]; then
-      linker_bin_dir="${PWD}/.verify-linker-bin"
-      mkdir -p "${linker_bin_dir}"
-      cp -f "${msvc_link_unix}" "${linker_bin_dir}/link.exe"
-      export PATH="${linker_bin_dir}:${PATH}"
+# Fallback for environments without VCToolsInstallDir.
+if [[ -z "${msvc_link}" ]]; then
+  pwsh_cmd=""
+  if command -v pwsh >/dev/null 2>&1; then
+    pwsh_cmd="$(command -v pwsh)"
+  elif command -v powershell >/dev/null 2>&1; then
+    pwsh_cmd="$(command -v powershell)"
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    pwsh_cmd="$(command -v powershell.exe)"
+  fi
 
-      linker_exe="${linker_bin_dir}/link.exe"
-      if command -v cygpath >/dev/null 2>&1; then
-        linker_exe="$(cygpath -w "${linker_exe}")"
+  if [[ -n "${pwsh_cmd}" ]]; then
+    msvc_link="$("${pwsh_cmd}" -NoProfile -Command '$vs = & \"${env:ProgramFiles(x86)}\\Microsoft Visual Studio\\Installer\\vswhere.exe\" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath; if (-not $vs) { exit 1 }; $tool = Get-ChildItem \"$vs\\VC\\Tools\\MSVC\" | Sort-Object Name -Descending | Select-Object -First 1; if (-not $tool) { exit 1 }; [System.IO.Path]::Combine($tool.FullName, \"bin\", \"Hostx64\", \"x64\", \"link.exe\")' 2>/dev/null || true)"
+  fi
+fi
+
+if [[ -n "${msvc_link}" ]]; then
+  msvc_link_unix="${msvc_link}"
+  if command -v cygpath >/dev/null 2>&1; then
+    msvc_link_unix="$(cygpath -u "${msvc_link}")"
+  fi
+
+  if [[ -f "${msvc_link_unix}" ]]; then
+    # Remove Git's usr/bin linker shim path so `link.exe` resolves to MSVC.
+    if command -v awk >/dev/null 2>&1; then
+      stripped_path="$(printf '%s' "${PATH}" | tr ':' '\n' | awk 'BEGIN{IGNORECASE=1} !/[/\\\\]Git[/\\\\]usr[/\\\\]bin$/ { print }' | paste -sd: -)"
+      if [[ -n "${stripped_path}" ]]; then
+        export PATH="${stripped_path}"
       fi
-      linker_exe_toml="${linker_exe//\\//}"
+    fi
 
-      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe_toml}"
-      export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe_toml}"
-      export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe_toml}"
-      export RUSTC_LINKER="${linker_exe_toml}"
+    linker_bin_dir="${PWD}/.verify-linker-bin"
+    mkdir -p "${linker_bin_dir}"
+    cp -f "${msvc_link_unix}" "${linker_bin_dir}/link.exe"
+    export PATH="${linker_bin_dir}:${PATH}"
 
-      mkdir -p "${PWD}/ZHMModSDK/Rust/.cargo"
-      cat > "${PWD}/ZHMModSDK/Rust/.cargo/config.toml" <<EOF
+    linker_exe="${linker_bin_dir}/link.exe"
+    if command -v cygpath >/dev/null 2>&1; then
+      linker_exe="$(cygpath -w "${linker_exe}")"
+    fi
+    linker_exe_toml="${linker_exe//\\//}"
+
+    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER="${linker_exe_toml}"
+    export CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS="-C linker=${linker_exe_toml}"
+    export RUSTFLAGS="${RUSTFLAGS:-} -C linker=${linker_exe_toml}"
+    export RUSTC_LINKER="${linker_exe_toml}"
+
+    mkdir -p "${PWD}/ZHMModSDK/Rust/.cargo"
+    cat > "${PWD}/ZHMModSDK/Rust/.cargo/config.toml" <<EOF
 [target.x86_64-pc-windows-msvc]
 linker = "${linker_exe_toml}"
 rustflags = ["-C", "linker=${linker_exe_toml}"]
 EOF
 
-      verify_cargo_home="${PWD}/.verify-cargo-home"
-      mkdir -p "${verify_cargo_home}"
-      cat > "${verify_cargo_home}/config.toml" <<EOF
+    verify_cargo_home="${PWD}/.verify-cargo-home"
+    mkdir -p "${verify_cargo_home}"
+    cat > "${verify_cargo_home}/config.toml" <<EOF
 [target.x86_64-pc-windows-msvc]
 linker = "${linker_exe_toml}"
 EOF
-      export CARGO_HOME="${verify_cargo_home}"
+    export CARGO_HOME="${verify_cargo_home}"
 
-      echo "Using Rust linker override: ${linker_exe_toml}"
-      echo "Using Cargo home override: ${CARGO_HOME}"
-    fi
+    echo "Using Rust linker override: ${linker_exe_toml}"
+    echo "Using Cargo home override: ${CARGO_HOME}"
+  else
+    echo "WARNING: MSVC linker path not found at ${msvc_link_unix}; continuing without override."
   fi
+else
+  echo "WARNING: Could not resolve MSVC link.exe; continuing without override."
 fi
 
 cmake --preset x64-Debug .

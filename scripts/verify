@@ -39,14 +39,12 @@ if [[ -n "${msvc_link}" ]]; then
       fi
     fi
 
-    linker_bin_dir="${PWD}/.verify-linker-bin"
-    mkdir -p "${linker_bin_dir}"
-    cp -f "${msvc_link_unix}" "${linker_bin_dir}/link.exe"
+    linker_bin_dir="$(dirname "${msvc_link_unix}")"
     export PATH="${linker_bin_dir}:${PATH}"
 
-    linker_exe="${linker_bin_dir}/link.exe"
+    linker_exe="${msvc_link}"
     if command -v cygpath >/dev/null 2>&1; then
-      linker_exe="$(cygpath -w "${linker_exe}")"
+      linker_exe="$(cygpath -w "${msvc_link_unix}")"
     fi
     linker_exe_toml="${linker_exe//\\//}"
 

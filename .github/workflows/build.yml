@@ -9,15 +9,20 @@ on:
     pull_request:
         types: [ opened, synchronize, reopened ]
 
+permissions:
+    contents: read
+
 jobs:
     build:
         name: Build
         runs-on: ${{ (github.repository == 'OrfeasZ/ZHMModSDK' && 'ptlm-runner') || 'windows-latest' }}
         if: github.event_name == 'pull_request' || github.event_name == 'release' || (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.repository != 'OrfeasZ/ZHMModSDK'
+        permissions:
+            contents: read
 
         steps:
             -   name: Get latest CMake and ninja
-                uses: lukka/get-cmake@latest
+                uses: lukka/get-cmake@16e8153a8b4918849d92aad131befe67a3705daa # v4.5.0
 
             -   name: Checkout
                 uses: actions/checkout@v4
@@ -25,13 +30,14 @@ jobs:
                     submodules: recursive
 
             -   name: Install Rust nightly toolchain
-                uses: dtolnay/rust-toolchain@nightly
+                uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly
                 if: github.repository != 'OrfeasZ/ZHMModSDK'
                 with:
+                    toolchain: nightly
                     components: rust-src
 
             -   name: Setup VS environment
-                uses: ilammy/msvc-dev-cmd@v1
+                uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
                 with:
                     arch: x64
 
@@ -138,6 +144,8 @@ jobs:
         needs: build
         if: github.repository == 'OrfeasZ/ZHMModSDK' && github.event_name == 'release'
         runs-on: ubuntu-latest
+        permissions:
+            contents: write
 
         strategy:
             matrix:
@@ -161,7 +169,7 @@ jobs:
 
             -   name: Get release
                 id: get_release
-                uses: bruceadams/get-release@v1.2.2
+                uses: bruceadams/get-release@f589ce0779c7bef1faf175f7488c972eb47dc046 # v1.2.2
                 env:
                     GITHUB_TOKEN: ${{ github.token }}
 

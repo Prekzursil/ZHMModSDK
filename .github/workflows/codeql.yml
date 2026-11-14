@@ -1,0 +1,83 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  schedule:
+    - cron: '34 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ matrix.os }}
+    permissions:
+      # required for all tasks
+      security-events: write
+      # only required for workflows in private repositories
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: actions
+            os: ubuntu-latest
+          - language: javascript-typescript
+            os: ubuntu-latest
+          - language: python
+            os: ubuntu-latest
+          - language: rust
+            os: ubuntu-latest
+          - language: c-cpp
+            os: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust nightly toolchain
+        if: matrix.language == 'rust' || matrix.language == 'c-cpp'
+        uses: dtolnay/rust-toolchain@2c76c034f9e32a5d6e2c104dc4df23a22476db04 # nightly
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Get latest CMake and ninja
+        if: matrix.language == 'c-cpp'
+        uses: lukka/get-cmake@16e8153a8b4918849d92aad131befe67a3705daa # v4.5.0
+
+      - name: Setup VS environment
+        if: matrix.language == 'c-cpp'
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
+        with:
+          arch: x64
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+          config: |
+            paths-ignore:
+              - External
+
+      - name: Build Rust library
+        if: matrix.language == 'rust'
+        run: cargo build --manifest-path ZHMModSDK/Rust/Cargo.toml
+
+      - name: Build C++ (Release)
+        if: matrix.language == 'c-cpp'
+        run: |
+          cmake --preset x64-Release .
+          cmake --build _build/x64-Release -j12
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

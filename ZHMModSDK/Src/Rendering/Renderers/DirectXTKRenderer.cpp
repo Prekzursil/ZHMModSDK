@@ -1399,7 +1399,7 @@ void DirectXTKRenderer::DrawText3D(
 
     int s_TextLength = 0;
 
-    while (p_Text[s_TextLength] && s_TextLength < 255) {
+    while (s_TextLength < 255 && p_Text[s_TextLength]) {
         s_TextLength++;
     }
 

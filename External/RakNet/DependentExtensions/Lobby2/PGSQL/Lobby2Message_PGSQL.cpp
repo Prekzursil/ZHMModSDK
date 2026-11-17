@@ -9,6 +9,7 @@
  */
 
 #include "Lobby2Message_PGSQL.h"
+#include "Lobby2Schema.h"
 
 using namespace RakNet;
 
@@ -532,15 +533,10 @@ bool RakNet::System_CreateDatabase_PGSQL::ServerDBImpl( Lobby2ServerCommand *com
 	PQclear(result);
 	pgsql->ExecuteBlockingCommand("DROP LANGUAGE plpgsql;", &result, false);
 	PQclear(result);
-	FILE *fp = fopen("Lobby2Schema.txt", "rb");
-	RakAssert(fp && "Can't find Lobby2Schema.txt");
-	fseek( fp, 0, SEEK_END );
-	unsigned int fileSize = ftell( fp );
-	fseek( fp, 0, SEEK_SET );
-	char *cmd = (char*) rakMalloc_Ex(fileSize+1, _FILE_AND_LINE_);
-	fread(cmd, 1, fileSize, fp);
-	fclose(fp);
-	cmd[fileSize]=0;
+	// The schema is fixed, first-party DDL compiled into the binary
+	// (Lobby2Schema.h); executing an external file read from disk would
+	// allow whoever controls that file to run arbitrary SQL.
+	const char *cmd = LOBBY2_SCHEMA_SQL;
 	success = pgsql->ExecuteBlockingCommand(cmd, &result, false);
 	PQclear(result);
 	if (success)
